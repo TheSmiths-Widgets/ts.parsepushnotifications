@@ -3,7 +3,7 @@ if (typeof OS_ANDROID === "undefined") {
     OS_ANDROID = Ti.Platform.name === "android"; OS_IOS = Ti.Platform.name === "iPhone OS";
 }
 
-var Parse = OS_ANDROID && require('eu.rebelcorp.parse'),
+var Parse,
     HTTPRequest = require('./lib/ts.httprequest/ts.httprequest.js'),
     _iOSData = {
         deviceToken: null,
@@ -24,8 +24,8 @@ const TAG = "[ PushNotifications ]",
 
 
 /* ------------------ Validations --------------- */
-function _ensureHTTPRequest() {
-    return !HTTPRequest && "Must be configured first." || null;
+function _ensureParse() {
+    return !Parse && "Must be configured first." || null;
 }
 
 function _ensureNetwork() {
@@ -40,47 +40,42 @@ function _ensureNotif(args) {
     return !args && "Invalid notification" || null;
 }
 
-
 /* ----------------- Wrappers --------------- */
 function _init(options) {
-    Ti.API.warn("Init called", JSON.stringify(options, null, "  "));
     var error;
 
     options = options || {};
-    error = _ensureHTTPRequest();
+    error = _ensureParse();
     error = _ensureNetwork();
-    if (error) { return options.onError ? options.onError(error) : Ti.API.warn(TAG, error); }
+    if (error) { return options.onError ? options.onError(error) : Ti.API.error(TAG, error); }
 
     OS_ANDROID && _initAndroid(options.onOpen, options.onReceive, options.onError);
     OS_IOS && _initIOS(options.onOpen, options.onReceive, options.onError);
 }
 
 function _subscribe(options) {
-    Ti.API.warn("Subscribe called", JSON.stringify(options, null, "  "));
     var error;
 
     options = options || {};
     error = _ensureArray(options.channels);
-    if (error) { return options.onError ? options.onError(error) : Ti.API.warn(TAG, error); }
+    if (error) { return options.onError ? options.onError(error) : Ti.API.error(TAG, error); }
 
     OS_ANDROID && _subscribeAndroid(options.channels);
     OS_IOS && _subscribeIOS(options.channels);
 }
 
 function _unsubscribe(options) {
-    Ti.API.warn("Unsubscribe called", JSON.stringify(options, null, "  "));
     var error;
 
     options = options || {};
     error = _ensureArray(options.channels);
-    if (error) { return options.onError ? options.onError(error) : Ti.API.warn(TAG, error); }
+    if (error) { return options.onError ? options.onError(error) : Ti.API.error(TAG, error); }
 
     OS_ANDROID && _unsubscribeAndroid(options.channels);
     OS_IOS && _unsubscribeIOS(options.channels);
 }
 
 function _send(options) {
-    Ti.API.warn("Send called", JSON.stringify(options, null, "  "));
     var error;
     options = options || {};
 
@@ -105,34 +100,36 @@ function _send(options) {
     }).send();
 }
 
+/* ---------------- CONFIGURATION -------------- */
+function _configure(options) {
+    options = options || {};
+    if (!options.Parse) { throw ("Invalid configuration options. Parse module is missing"); }
+    Parse = options.Parse;
+}
+
 /* ----------------- ANDROID -------------------*/
 function _initAndroid(onOpen, onReceive) {
     Parse.start();
     onOpen && Parse.addEventListener('notificationopen', function (e) {
         delete e.source; delete e.bubbles; delete e.cancelBubble; delete e.type;
-        Ti.API.warn("Notification Open", JSON.stringify(e, null, "  "));
         onOpen(e);
     });
 
     onReceive && Parse.addEventListener('notificationreceive', function (e) {
         delete e.source; delete e.bubbles; delete e.cancelBubble; delete e.type;
-        Ti.API.warn("Notification Received", JSON.stringify(e, null, "  "));
         onReceive(e);
     });
     
     /* Check if we come back from background */
     var data = Ti.App.Android.launchIntent.getStringExtra('com.parse.Data'); 
     data && onOpen && onOpen(JSON.parse(data));
-    data && Ti.API.warn("App wake up with notification :", data);
 }
 
 function _subscribeAndroid(channels) { 
-    Ti.API.warn("Subscribe channels", JSON.stringify(channels, null, "  "));
     channels.forEach(Parse.subscribeChannel.bind(Parse)); 
 }
 
 function _unsubscribeAndroid(channels) { 
-    Ti.API.warn("Unsubscribe channels", JSON.stringify(channels, null, "  "));
     channels.forEach(Parse.unsubscribeChannel.bind(Parse)); 
 }
 
@@ -142,7 +139,6 @@ function _initIOS(onOpen, onReceive, onError) {
 
     function onNotificationsRegistered(e) { 
         _iOSData.deviceToken = e.deviceToken; 
-        Ti.API.warn("Notification Registered", JSON.stringify(_iOSData, null, "  "));
     }
 
     function onNotificationEvent(notif) {
@@ -170,7 +166,6 @@ function _initIOS(onOpen, onReceive, onError) {
 
     function registerForNotifications(types) {
         _iOSData.deviceToken = "PENDING";
-        Ti.API.warn("Register For Push Notifications", JSON.stringify(_iOSData, null, "  "));
         Ti.Network.registerForPushNotifications({
             types: types,
             error: onError,
@@ -182,7 +177,6 @@ function _initIOS(onOpen, onReceive, onError) {
     if (+Ti.Platform.version.split(".")[0] < 8) { registerForNotifications(NOTIFICATION_TYPES); } 
     else {
         Ti.App.iOS.addEventListener('usernotificationsettings', function onNotificationsSettings(e) {
-            Ti.API.warn("User Notification Settings received");
             Ti.App.iOS.removeEventListener('usernotificationsettings', onNotificationsSettings);
             registerForNotifications();
         });
@@ -192,11 +186,8 @@ function _initIOS(onOpen, onReceive, onError) {
 }
 
 function _subscribeIOS(channels, remove) {
-    Ti.API.warn("Subscribe channels:", JSON.stringify(channels, null, "  "));
     function createInstallations() {
         _iOSData.installationsId = "PENDING";
-        Ti.API.warn("Create installations", JSON.stringify(_iOSData, null, "  "));
-        Ti.API.warn("Channels:", JSON.stringify(channels, null, "  "));
         new HTTPRequest({
             url: "https://api.parse.com/1/installations",
             method: "POST",
@@ -216,8 +207,6 @@ function _subscribeIOS(channels, remove) {
     }
 
     function updateInstallations() {
-        Ti.API.warn("Update installations", JSON.stringify(_iOSData, null, "  "));
-        Ti.API.warn("Channels:", JSON.stringify(channels, null, "  "));
         new HTTPRequest({
             url: "https://api.parse.com/1/installations/" + _iOSData.installationsId,
             method: "put",
@@ -240,13 +229,11 @@ function _subscribeIOS(channels, remove) {
         Ti.API.info(TAG, "Channels subscribed on Parse"); 
         _iOSData.installationsId = response.objectId;
         _iOSData.channels = channels;
-        Ti.API.warn("Parse create installations succeed", JSON.stringify(_iOSData, null, "  "));
     }
 
     function onParseUpdateSuccess(response) {
         Ti.API.info(TAG, "Channels subscribed on Parse");
         _iOSData.channels = channels;
-        Ti.API.warn("Parse update installations succeed", JSON.stringify(_iOSData, null, "  "));
     }
 
     function onParseFailure() { 
@@ -255,7 +242,6 @@ function _subscribeIOS(channels, remove) {
     }
 
     function waitForAsyncTask() {
-        Ti.API.warn("Wait for async task to end");
         if (!_iOSData.deviceToken) { return Ti.API.error(TAG, "Please, init before subscribing any channels"); }
         if (_iOSData.deviceToken === "PENDING") { return setTimeout(waitForAsyncTask, 200); }
         if (_iOSData.installationsId === "PENDING") { return setTimeTimeout(waitForAsyncTask, 200); }
@@ -270,7 +256,6 @@ function _subscribeIOS(channels, remove) {
 }
 
 function _unsubscribeIOS(channels) {
-    Ti.API.warn("Unsubscribe channels", JSON.stringify(channels, null, "  "));
     _subscribeIOS(_iOSData.channels.filter(function (c) {
         return channels.indexOf(c) === -1;
     }), true);
@@ -278,6 +263,14 @@ function _unsubscribeIOS(channels) {
 
 
 /* -------------- PUBLIC INTERFACE -------------------- */
+/**
+ * Configure the library, i.e., Inject required dependency
+ *
+ * @param {Object} options
+ *      @param {Parse} options.Parse Parse module instance from eu.rebelcorp.parse.
+ */
+exports.configure = _configure;
+
 
 /**
  * Bind all necessary listeners to handle push notifications.

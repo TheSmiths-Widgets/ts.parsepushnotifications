@@ -23,7 +23,9 @@ abstraction for handling push notifications with Parse in the same way for both 
 
 **Or use your favorite package manager** 
 
-- [gitTio](http://gitt.io/cli): `gittio install ts.parsepushnotifications`
+- [gitTio](http://gitt.io/cli)
+    - `gittio install ts.parsepushnotifications`
+    - `gittio install eu.rebelcorp.parse@0.10`
 
 ### Use it
 Populate your tiapp.xml with your Parse settings keys as follow:
@@ -37,18 +39,25 @@ Populate your tiapp.xml with your Parse settings keys as follow:
 Then, in your Titanium file:
 
 ```javascript
-var ParsePushNotifications = require('ts.parsepushnotifications');
+var ParsePushNotifications = require('ts.parsepushnotifications'),
+    Parse = OS_ANDROID && require('eu.rebelcorp.parse');
+    
+/* Inject dependencies, only for Android. Could be done in alloy.js */
+OS_ANDROID && ParsePushNotifications.configure({ Parse: Parse });
 
-ParsePushNotifications.register({
+/* Once ready, initialize the module */
+ParsePushNotifications.init({
     onOpen: function onOpen(data) { doSomething(data); },
     onReceive: function onReceive(data) { doSomething(data); },
     onError: function onError(msg) { doSomething(msg); }
 });
 
+/* Subscribe to a channel */
 ParsePushNotifications.subscribe({
     channels: ["TheSmiths"]
 });
 
+/* Send a notification */
 ParsePushNotifications.send({
     channels: ["The Smiths"],
     data: {
@@ -59,6 +68,7 @@ ParsePushNotifications.send({
     onError: function onError(msg) { doSomething(msg); } 
 });
 
+/* Unsubscribe from a channel */
 ParsePushNotifications.unsubscribe({
     channels: ["TheSmiths"]
 });
@@ -72,6 +82,13 @@ Parse to send it incoming notificatons. Please, refer to [this Parse tutorial](h
 to correctly setup your certificates.
 
 ### API
+
+#####  ParsePushNotifications.configure(config)
+
+> *Inject all necessary dependencies*
+>
+> - `{Object}` **config**
+>   - `{Object}` **config.Parse** An instance of the Parse module from eu.rebelcorp.parse
 
 #####  ParsePushNotifications.init(options)
 
