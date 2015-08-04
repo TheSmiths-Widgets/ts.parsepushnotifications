@@ -1,0 +1,16 @@
+#
+# this is your module manifest and used by Titanium
+# during compilation, packaging, distribution, etc.
+#
+version: 1.0.0
+description: Handle push notifications with Parse on both iOS and Android
+author: The Smiths [Matthias Benkort]
+license: Apache
+copyright: Copyright (c) 2015 by The Smiths
+
+# these should not be edited
+name: ts.parsepushnotifications
+moduleid: ts.parsepushnotifications
+guid: 417c273a-8cfc-45ae-90fe-7ffea7bd5dbf
+platform: commonjs
+minsdk: 4.0.0.GA
